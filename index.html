@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EMI Calculator</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #eef2f3;
+      margin: 0;
+      padding: 0;
+    }
+    h1 {
+      text-align: center;
+      margin-top: 20px;
+      color: #2c3e50;
+    }
+    .calculator {
+      max-width: 600px;
+      margin: 20px auto;
+      padding: 20px;
+      background: #f9f9f9;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    .calculator-form div {
+      margin-bottom: 12px;
+      display: flex;
+      flex-direction: column;
+    }
+    .calculator label {
+      margin-bottom: 4px;
+      font-weight: bold;
+      color: #34495e;
+    }
+    .calculator input, .calculator select {
+      padding: 8px;
+      font-size: 16px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    .result {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 20px;
+    }
+    .result-details {
+      flex: 1;
+    }
+    .result-details div {
+      margin-bottom: 10px;
+      font-size: 16px;
+    }
+    .value {
+      font-weight: bold;
+      margin-left: 4px;
+    }
+    .value::before {
+      content: "\20B9"; /* Rupee symbol */
+      margin-right: 4px;
+      opacity: 0.7;
+    }
+    .chart-container {
+      flex: 1;
+    }
+    .chart-container canvas {
+      max-width: 100%;
+    }
+    @media (max-width: 600px) {
+      .result { 
+        flex-direction: column; 
+        text-align: center; 
+      }
+      .chart-container { 
+        margin-top: 20px; 
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>EMI Calculator</h1>
+  <div class="calculator">
+    <form class="calculator-form">
+      <!-- Loan Type first -->
+      <div>
+        <label for="loanType">Loan Type:</label>
+        <select id="loanType">
+          <option value="">--Select--</option>
+          <option value="home">Home Loan</option>
+          <option value="car">Car Loan</option>
+          <option value="personal">Personal Loan</option>
+          <option value="education">Education Loan</option>
+        </select>
+      </div>
+      <div>
+        <label for="loanAmount">Loan Amount:</label>
+        <input type="number" id="loanAmount" placeholder="Enter amount">
+      </div>
+      <div>
+        <label for="interestRate">Interest Rate (% p.a.):</label>
+        <input type="number" id="interestRate" step="0.01" placeholder="Annual rate">
+      </div>
+      <div>
+        <label for="loanTenure">Tenure (months):</label>
+        <input type="number" id="loanTenure" placeholder="e.g. 120">
+      </div>
+    </form>
+
+    <div class="result">
+      <div class="result-details">
+        <div>Monthly EMI: <span class="value" id="emiValue"></span></div>
+        <div>Total Interest: <span class="value" id="interestValue"></span></div>
+        <div>Total Payment: <span class="value" id="totalValue"></span></div>
+      </div>
+      <div class="chart-container">
+        <canvas id="emiChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const loanAmountInput = document.getElementById('loanAmount');
+    const interestRateInput = document.getElementById('interestRate');
+    const loanTenureInput = document.getElementById('loanTenure');
+    const loanTypeSelect = document.getElementById('loanType');
+
+    const emiValueSpan = document.getElementById('emiValue');
+    const interestValueSpan = document.getElementById('interestValue');
+    const totalValueSpan = document.getElementById('totalValue');
+
+    let emiChart;
+
+    function calculateAndUpdate() {
+      let P = parseFloat(loanAmountInput.value) || 0;
+      let annualRate = parseFloat(interestRateInput.value) || 0;
+      let n = parseFloat(loanTenureInput.value) || 0;
+
+      let r = annualRate / 100 / 12;
+      let emi = (P && r && n)
+                ? (P * r * Math.pow(1+r, n)) / (Math.pow(1+r, n) - 1)
+                : 0;
+      if (!isFinite(emi)) emi = 0;
+
+      let emiRounded = Math.ceil(emi);
+      emiValueSpan.textContent = emiRounded;
+
+      let totalPayment = emiRounded * n;
+      let totalInterest = totalPayment - P;
+      totalValueSpan.textContent = totalPayment;
+      interestValueSpan.textContent = totalInterest;
+
+      let interestAmt = Math.ceil(totalInterest);
+      let principalAmt = P;
+
+      if (!emiChart) {
+        const ctx = document.getElementById('emiChart').getContext('2d');
+        emiChart = new Chart(ctx, {
+          type: 'pie',
+          data: {
+            labels: ['Total Interest', 'Principal'],
+            datasets: [{
+              data: [interestAmt, principalAmt],
+              backgroundColor: ['#e74c3c', '#3498db']
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: { position: 'bottom' }
+            }
+          }
+        });
+      } else {
+        emiChart.data.datasets[0].data = [interestAmt, principalAmt];
+        emiChart.update();
+      }
+    }
+
+    // Preset interest rates on loan type change
+    loanTypeSelect.addEventListener('change', () => {
+      let presetRate = 0;
+      switch(loanTypeSelect.value) {
+        case 'home': presetRate = 6.5; break;
+        case 'car': presetRate = 9.0; break;
+        case 'personal': presetRate = 12.5; break;
+        case 'education': presetRate = 5.0; break;
+      }
+      if (presetRate) interestRateInput.value = presetRate;
+      calculateAndUpdate();
+    });
+
+    loanAmountInput.addEventListener('input', calculateAndUpdate);
+    interestRateInput.addEventListener('input', calculateAndUpdate);
+    loanTenureInput.addEventListener('input', calculateAndUpdate);
+
+    calculateAndUpdate();
+  </script>
+</body>
+</html>
